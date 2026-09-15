@@ -1,7 +1,7 @@
-<h1 align="center">🐉 FakeBogatov / developer</h1>
+<h1 align="center">🐉 Bogatov</h1>
 
 <p align="center">
-  <strong>Сайты · Боты · Мониторинг</strong><br>
+  <strong>@tonkeepseo</strong><br>
   <sub>Java · Kotlin · Python · C++ · Rust</sub>
 </p>
 
