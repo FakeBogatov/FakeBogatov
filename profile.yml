@@ -1,0 +1,157 @@
+name: Update profile visuals
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 3 * * *'
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - .github/workflows/profile.yml
+
+concurrency:
+  group: profile-visuals
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out profile
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build GitHub statistics
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROFILE_USER: ${{ github.repository_owner }}
+        run: |
+          python3 - <<'PY'
+          import datetime
+          import html
+          import json
+          import os
+          import pathlib
+          import urllib.request
+
+          login = os.environ['PROFILE_USER']
+          token = os.environ['GH_TOKEN']
+          now = datetime.datetime.now(datetime.timezone.utc)
+          year = now.year
+
+          def api(url, body=None):
+              request = urllib.request.Request(
+                  url,
+                  data=json.dumps(body).encode() if body else None,
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'User-Agent': 'github-profile-visuals',
+                      'Content-Type': 'application/json',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          user = api(f'https://api.github.com/users/{login}')
+          stars = 0
+          page = 1
+          while True:
+              repos = api(f'https://api.github.com/users/{login}/repos?type=owner&per_page=100&page={page}')
+              stars += sum(repo['stargazers_count'] for repo in repos if not repo['fork'])
+              if len(repos) < 100:
+                  break
+              page += 1
+
+          query = '''query($login: String!, $from: DateTime!, $to: DateTime!) {
+            user(login: $login) {
+              pullRequests { totalCount }
+              issues { totalCount }
+              currentYear: contributionsCollection(from: $from, to: $to) {
+                totalCommitContributions
+              }
+              contributionsCollection {
+                contributionCalendar { totalContributions }
+              }
+            }
+          }'''
+          result = api('https://api.github.com/graphql', {
+              'query': query,
+              'variables': {
+                  'login': login,
+                  'from': f'{year}-01-01T00:00:00Z',
+                  'to': now.strftime('%Y-%m-%dT%H:%M:%SZ'),
+              },
+          })
+          if result.get('errors') or not result.get('data', {}).get('user'):
+              raise RuntimeError('GitHub did not return profile statistics')
+          data = result['data']['user']
+          activity = data['contributionsCollection']['contributionCalendar']['totalContributions']
+
+          def number(value):
+              return f'{value:,}'.replace(',', ' ')
+
+          icons = [
+              '<path d="m8 1.4 2 4.1 4.5.6-3.2 3.2.8 4.5L8 11.7l-4.1 2.1.8-4.5L1.5 6.1l4.5-.6z"/>',
+              '<path d="M1 8h4m6 0h4"/><circle cx="8" cy="8" r="3"/>',
+              '<circle cx="4" cy="3" r="2"/><circle cx="4" cy="13" r="2"/><circle cx="12" cy="13" r="2"/><path d="M4 5v6m8 0V5a2 2 0 0 0-2-2H8m2-2L8 3l2 2"/>',
+              '<circle cx="8" cy="8" r="6"/><path d="M8 4.5v4M8 11v.5"/>',
+              '<path d="M3 1.5h10v13H5a2 2 0 0 1-2-2zm0 10h10M6 4h4"/>',
+          ]
+          rows = [
+              ('Звёзды в репозиториях', stars),
+              (f'Коммиты за {year}', data['currentYear']['totalCommitContributions']),
+              ('Pull requests', data['pullRequests']['totalCount']),
+              ('Issues', data['issues']['totalCount']),
+              ('Публичные репозитории', user['public_repos']),
+          ]
+          contents = []
+          for i, (label, value) in enumerate(rows):
+              y = 75 + i * 27
+              contents.append(f'<g transform="translate(27,{y-12})" fill="none" stroke="#00bfff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">{icons[i]}</g>')
+              contents.append(f'<text x="54" y="{y}" class="label">{html.escape(label)}</text>')
+              contents.append(f'<text x="346" y="{y}" text-anchor="end" class="value">{number(value)}</text>')
+
+          title = html.escape(f'Статистика GitHub · {login}')
+          svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="540" height="228" viewBox="0 0 540 228" role="img" aria-labelledby="title desc">
+            <title id="title">{title}</title>
+            <desc id="desc">Публичная статистика GitHub. Обновлено {now:%Y-%m-%d} UTC.</desc>
+            <style>text{{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif}}.label,.value{{fill:#c9c3a3;font-size:13px;font-weight:600}}.value{{font-variant-numeric:tabular-nums}}</style>
+            <rect width="540" height="228" rx="9" fill="#202124"/>
+            <text x="27" y="35" fill="#ff2f92" font-size="17" font-weight="600">{title}</text>
+            {''.join(contents)}
+            <circle cx="441" cy="122" r="44" fill="none" stroke="#54263e" stroke-width="6"/>
+            <path d="M441 78a44 44 0 1 1-41.8 57.6" fill="none" stroke="#d83b87" stroke-width="6" stroke-linecap="round"/>
+            <text x="441" y="125" text-anchor="middle" fill="#d9d3b0" font-size="25" font-weight="700">{number(activity)}</text>
+            <text x="441" y="146" text-anchor="middle" fill="#a6a3a4" font-size="11">за год</text>
+            <text x="27" y="211" fill="#85838a" font-size="10">Обновляется ежедневно · GitHub API</text>
+          </svg>'''
+          pathlib.Path('assets').mkdir(exist_ok=True)
+          pathlib.Path('assets/stats.svg').write_text(svg, encoding='utf-8')
+          print('Updated public GitHub statistics')
+          PY
+
+      - name: Generate contribution snake
+        uses: Platane/snk/svg-only@d8f6715049803e982ee5ff501b6b9b7d5deeb09b # v3
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          outputs: |
+            assets/github-snake.svg?palette=github-dark&color_snake=#d83b87
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Save updated visuals
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/stats.svg assets/github-snake.svg
+          if git diff --cached --quiet; then
+            echo "Profile visuals are already current."
+          else
+            git commit -m "Update profile visuals"
+            git push
+          fi
