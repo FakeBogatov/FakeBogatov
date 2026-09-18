@@ -26,11 +26,11 @@
 <br>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/FakeBogatov/FakeBogatov/main/assets/stats.svg" width="540" alt="Статистика GitHub пользователя FakeBogatov">
+  <img src="https://raw.githubusercontent.com/FakeBogatov/FakeBogatov/main/assets/stats.svg?v=2" width="540" alt="Статистика GitHub пользователя FakeBogatov">
 </p>
 
 <br>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/FakeBogatov/FakeBogatov/main/assets/github-snake.svg" width="100%" alt="Змейка на графике активности GitHub">
+  <img src="https://raw.githubusercontent.com/FakeBogatov/FakeBogatov/main/assets/github-snake.svg?v=2" width="100%" alt="Змейка на графике активности GitHub">
 </p>
