@@ -3,7 +3,7 @@ name: Update profile visuals
 on:
   workflow_dispatch:
   schedule:
-    - cron: '23 3 * * *'
+    - cron: '23 * * * *'
   push:
     branches: [main]
     paths:
@@ -128,7 +128,7 @@ jobs:
             <path d="M441 78a44 44 0 1 1-41.8 57.6" fill="none" stroke="#d83b87" stroke-width="6" stroke-linecap="round"/>
             <text x="441" y="125" text-anchor="middle" fill="#d9d3b0" font-size="25" font-weight="700">{number(activity)}</text>
             <text x="441" y="146" text-anchor="middle" fill="#a6a3a4" font-size="11">за год</text>
-            <text x="27" y="211" fill="#85838a" font-size="10">Обновляется ежедневно · GitHub API</text>
+            <text x="27" y="211" fill="#85838a" font-size="10">Обновляется каждый час · GitHub API</text>
           </svg>'''
           pathlib.Path('assets').mkdir(exist_ok=True)
           pathlib.Path('assets/stats.svg').write_text(svg, encoding='utf-8')
@@ -139,10 +139,9 @@ jobs:
         uses: Platane/snk/svg-only@d8f6715049803e982ee5ff501b6b9b7d5deeb09b # v3
         with:
           github_user_name: ${{ github.repository_owner }}
+          github_token: ${{ github.token }}
           outputs: |
             assets/github-snake.svg?palette=github-dark&color_snake=#d83b87
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Save updated visuals
         run: |
